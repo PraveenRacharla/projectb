@@ -1,7 +1,6 @@
 Flask
+Flask-SQLAlchemy
 flask-cors
 gunicorn
-Flask-SQLAlchemy
 psycopg[binary]
 python-dotenv
-pip freeze
