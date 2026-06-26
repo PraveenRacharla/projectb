@@ -1,58 +1,52 @@
-from flask import Flask, request, jsonify
+from datetime import date
+
+from flask import Flask, jsonify, request
 from flask_cors import CORS
-import sqlite3
+
+from config import Config
+from models import db, Expense
 
 app = Flask(__name__)
-DB = "expenses.db"
+app.config.from_object(Config)
+
 CORS(app)
 
-def connect():
-    conn = sqlite3.connect(DB)
-    conn.row_factory = sqlite3.Row
-    return conn
+db.init_app(app)
 
-# INIT DB
-def init_db():
-    conn = connect()
-    with open("schema.sql") as f:
-        conn.executescript(f.read())
-    conn.commit()
-    conn.close()
+with app.app_context():
+    db.create_all()
 
-init_db()
 
-# HOME ROUTE (MUST BE HERE)
 @app.route("/")
 def home():
     return {
         "status": "ok",
-        "message": "Budget API is running",
-        "endpoints": ["/expenses"]
+        "message": "Budget API running"
     }
 
-# GET ALL EXPENSES
+
 @app.route("/expenses", methods=["GET"])
 def get_expenses():
-    conn = connect()
-    rows = conn.execute("SELECT * FROM expenses ORDER BY date DESC").fetchall()
-    conn.close()
+    expenses = Expense.query.order_by(Expense.date.desc()).all()
+    return jsonify([e.to_dict() for e in expenses])
 
-    return jsonify([dict(row) for row in rows])
 
-# ADD EXPENSE
 @app.route("/expenses", methods=["POST"])
 def add_expense():
-    data = request.json
+    data = request.get_json()
 
-    conn = connect()
-    conn.execute(
-        "INSERT INTO expenses (date, category, amount, note) VALUES (?, ?, ?, ?)",
-        (data["date"], data["category"], data["amount"], data.get("note", ""))
+    expense = Expense(
+        date=date.fromisoformat(data["date"]),
+        category=data["category"],
+        amount=float(data["amount"]),
+        note=data.get("note", "")
     )
-    conn.commit()
-    conn.close()
 
-    return {"status": "success"}
+    db.session.add(expense)
+    db.session.commit()
+
+    return jsonify(expense.to_dict()), 201
+
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+    app.run(host="0.0.0.0", port=5000, debug=True)
